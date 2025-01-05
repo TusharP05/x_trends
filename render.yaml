@@ -13,7 +13,3 @@ services:
         value: "/opt/render/project/src/.render/chrome"
       - key: CHROMEDRIVER_PATH
         value: "/opt/render/project/src/.render/chromedriver"
-      - key: PATH
-        value: "/usr/local/bin:$PATH"  # Ensure ChromeDriver is in PATH
-      - key: WDM_LOCAL
-        value: "1"  # Helps WebDriverManager cache drivers locally

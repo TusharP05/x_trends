@@ -20,37 +20,24 @@ class TwitterScraper:
     def setup_driver(self):
         options = webdriver.ChromeOptions()
         
-        # Explicitly use environment variables for Chrome and ChromeDriver paths
-        chrome_path = os.environ.get('CHROME_PATH', '')
-        chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', '')
-
-        # Chrome binary paths to check
-        chrome_paths = [
-            chrome_path,  # From environment variable
-            '/opt/render/project/src/.render/chrome',
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/google-chrome',
-            '/opt/google/chrome/chrome'
-        ]
+        # Use environment variables for Chrome and ChromeDriver paths
+        chrome_path = os.environ.get('CHROME_PATH', '/opt/render/project/src/.render/chrome')
+        chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', '/opt/render/project/src/.render/chromedriver')
         
-        chrome_found = False
-        for path in chrome_paths:
-            if path and os.path.exists(path):
-                print(f"Found Chrome at: {path}")
-                options.binary_location = path
-                chrome_found = True
-                break
+        # Verify paths exist
+        if not os.path.exists(chrome_path):
+            raise Exception(f"Chrome binary not found at {chrome_path}")
         
-        if not chrome_found:
-            print("Attempting to find Chrome using which...")
-            chrome_path = os.popen('which google-chrome-stable').read().strip()
-            if chrome_path:
-                print(f"Found Chrome using which: {chrome_path}")
-                options.binary_location = chrome_path
-                chrome_found = True
+        if not os.path.exists(chromedriver_path):
+            raise Exception(f"ChromeDriver not found at {chromedriver_path}")
         
-        if not chrome_found:
-            raise Exception("Chrome binary not found. Make sure Chrome is installed and PATH is configured correctly.")
+        # Set Chrome binary location
+        options.binary_location = chrome_path
+        
+        # Configure service with ChromeDriver path
+        service = Service(executable_path=chromedriver_path)
+        
+    # Rest of your existing Chrome setup...
 
         # Headless mode and other Render-specific options
         options.add_argument('--headless=new')
