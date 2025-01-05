@@ -15,31 +15,48 @@ from config.config import TWITTER_USERNAME, TWITTER_PASSWORD, TWITTER_EMAIL
 class TwitterScraper:
     def __init__(self, manual_verify_timeout=300):
         self.manual_verify_timeout = manual_verify_timeout
+        self.driver = None
+        self.wait = None
         self.setup_driver()
 
     def setup_driver(self):
         options = webdriver.ChromeOptions()
         
-        # Use environment variables for Chrome and ChromeDriver paths
-        chrome_path = os.environ.get('CHROME_PATH', '/opt/render/project/src/.render/chrome')
-        chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', '/opt/render/project/src/.render/chromedriver')
+        # Potential paths for Chrome and ChromeDriver
+        chrome_paths = [
+            os.environ.get('CHROME_PATH', '/opt/render/project/src/.render/chrome'),
+            '/opt/render/project/src/.render/chrome'
+        ]
+        chromedriver_paths = [
+            os.environ.get('CHROMEDRIVER_PATH', '/opt/render/project/src/.render/chromedriver'),
+            '/opt/render/project/src/.render/chromedriver'
+        ]
         
-        # Verify paths exist
-        if not os.path.exists(chrome_path):
-            raise Exception(f"Chrome binary not found at {chrome_path}")
+        # Find existing Chrome binary
+        chrome_binary = None
+        for path in chrome_paths:
+            if path and os.path.exists(path):
+                chrome_binary = path
+                break
         
-        if not os.path.exists(chromedriver_path):
-            raise Exception(f"ChromeDriver not found at {chromedriver_path}")
+        # Find existing ChromeDriver
+        chromedriver_path = None
+        for path in chromedriver_paths:
+            if path and os.path.exists(path):
+                chromedriver_path = path
+                break
+        
+        # Validate paths
+        if not chrome_binary:
+            raise Exception("Chrome binary not found. Ensure Chrome is installed during build process.")
+        
+        if not chromedriver_path:
+            raise Exception("ChromeDriver not found. Ensure ChromeDriver is installed during build process.")
         
         # Set Chrome binary location
-        options.binary_location = chrome_path
+        options.binary_location = chrome_binary
         
-        # Configure service with ChromeDriver path
-        service = Service(executable_path=chromedriver_path)
-        
-    # Rest of your existing Chrome setup...
-
-        # Headless mode and other Render-specific options
+        # Headless mode and Render-specific options
         options.add_argument('--headless=new')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
@@ -62,27 +79,8 @@ class TwitterScraper:
         options.add_argument(f'--user-agent={user_agent}')
 
         try:
-            # Use ChromeDriver path from environment or fallback
-            service_paths = [
-                chromedriver_path,
-                '/opt/render/project/src/.render/chromedriver',
-                '/usr/local/bin/chromedriver'
-            ]
-            
-            service_path = None
-            for path in service_paths:
-                if path and os.path.exists(path):
-                    service_path = path
-                    break
-            
-            if service_path:
-                print(f"Using ChromeDriver at: {service_path}")
-                service = Service(executable_path=service_path)
-            else:
-                # Fallback to WebDriverManager
-                print("Using WebDriverManager for ChromeDriver...")
-                from webdriver_manager.chrome import ChromeDriverManager
-                service = Service(ChromeDriverManager().install())
+            # Configure service with ChromeDriver path
+            service = Service(executable_path=chromedriver_path)
             
             print("Initializing Chrome driver...")
             self.driver = webdriver.Chrome(service=service, options=options)
@@ -273,7 +271,7 @@ class TwitterScraper:
 
     def cleanup(self):
         try:
-            if hasattr(self, 'driver'):
+            if hasattr(self, 'driver') and self.driver:
                 self.driver.quit()
                 print("Browser closed successfully")
         except Exception as e:

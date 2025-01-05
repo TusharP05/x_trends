@@ -1,60 +1,56 @@
 #!/bin/bash
 
-set -e  # Exit immediately if a command exits with a non-zero status
+set -e
 
-echo "Starting Chrome installation on Render..."
+echo "Starting build process..."
 
-# Update package lists and install dependencies
-apt-get update
-apt-get install -y \
-    wget \
-    gnupg \
-    unzip \
-    curl
+# Create directories
+mkdir -p /opt/render/project/src/.render
 
-# Add Google Chrome repository
-wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
-echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
+# Download Chrome
+CHROME_URL="https://dl.google.com/linux/direct/google-chrome-stable_current_x64.deb"
+CHROME_DOWNLOAD_DIR="/tmp/chrome"
+mkdir -p "$CHROME_DOWNLOAD_DIR"
 
-# Update package lists again
-apt-get update
+echo "Downloading Chrome..."
+wget -q -O "$CHROME_DOWNLOAD_DIR/chrome.deb" "$CHROME_URL"
 
-# Install Google Chrome
-apt-get install -y google-chrome-stable
+# Extract Chrome from .deb package
+cd "$CHROME_DOWNLOAD_DIR"
+ar x chrome.deb
+tar -xf data.tar.xz
 
-# Verify Chrome installation
-CHROME_PATH=$(which google-chrome-stable)
-if [ -z "$CHROME_PATH" ]; then
-    echo "Error: Google Chrome installation failed"
+# Find Chrome binary
+CHROME_BINARY=$(find . -name "google-chrome" | head -n 1)
+if [ -z "$CHROME_BINARY" ]; then
+    echo "Error: Chrome binary not found"
     exit 1
 fi
 
+# Copy Chrome to render directory
+cp "$CHROME_BINARY" /opt/render/project/src/.render/chrome
+chmod +x /opt/render/project/src/.render/chrome
+
 # Print Chrome version
-$CHROME_PATH --version
+/opt/render/project/src/.render/chrome --version
 
-# Install ChromeDriver
-CHROME_VERSION=$(google-chrome-stable --version | cut -d' ' -f3 | cut -d'.' -f1)
-CHROMEDRIVER_VERSION=$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
+# Download matching ChromeDriver
+CHROME_VERSION=$(/opt/render/project/src/.render/chrome --version | cut -d' ' -f3 | cut -d'.' -f1)
+CHROMEDRIVER_URL=$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
+CHROMEDRIVER_DOWNLOAD="https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_URL/chromedriver_linux64.zip"
 
-echo "Installing ChromeDriver version: $CHROMEDRIVER_VERSION"
+echo "Downloading ChromeDriver version: $CHROMEDRIVER_URL"
+wget -q -O "/tmp/chromedriver.zip" "$CHROMEDRIVER_DOWNLOAD"
 
-wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
-unzip chromedriver_linux64.zip
-chmod +x chromedriver
-mv chromedriver /usr/local/bin/
+# Extract ChromeDriver
+unzip -o "/tmp/chromedriver.zip" -d /opt/render/project/src/.render/
+chmod +x /opt/render/project/src/.render/chromedriver
 
 # Verify ChromeDriver
-chromedriver --version
-
-# Create necessary directories
-mkdir -p /opt/render/project/src/.render/
-
-# Create symlinks
-ln -sf "$CHROME_PATH" /opt/render/project/src/.render/chrome
-ln -sf /usr/local/bin/chromedriver /opt/render/project/src/.render/chromedriver
+/opt/render/project/src/.render/chromedriver --version
 
 # Install Python dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
 
-echo "Chrome and ChromeDriver installation completed successfully"
+echo "Build process completed successfully"
