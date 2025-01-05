@@ -20,46 +20,48 @@ class TwitterScraper:
     def setup_driver(self):
         options = webdriver.ChromeOptions()
         
-        if 'RENDER' in os.environ:
-            print("Configuring for Render environment...")
-            
-            # Chrome binary paths to check
-            chrome_paths = [
-                '/opt/render/project/src/.render/chrome',
-                '/usr/bin/google-chrome-stable',
-                '/usr/bin/google-chrome',
-                '/opt/google/chrome/chrome'
-            ]
-            
-            chrome_found = False
-            for path in chrome_paths:
-                if os.path.exists(path):
-                    print(f"Found Chrome at: {path}")
-                    options.binary_location = path
-                    chrome_found = True
-                    break
-            
-            if not chrome_found:
-                print("Chrome not found in standard locations, attempting to find it...")
-                chrome_path = os.popen('which google-chrome-stable').read().strip()
-                if chrome_path:
-                    print(f"Found Chrome using which: {chrome_path}")
-                    options.binary_location = chrome_path
-                    chrome_found = True
-                
-            if not chrome_found:
-                raise Exception("Chrome binary not found. Please ensure Chrome is installed correctly.")
+        # Explicitly use environment variables for Chrome and ChromeDriver paths
+        chrome_path = os.environ.get('CHROME_PATH', '')
+        chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', '')
 
-            # Headless mode and other Render-specific options
-            options.add_argument('--headless=new')
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--disable-gpu')
-            options.add_argument('--single-process')
-            options.add_argument('--disable-extensions')
-            options.add_argument('--disable-software-rasterizer')
-            options.add_argument('--disable-setuid-sandbox')
-            options.add_argument('--disable-blink-features=AutomationControlled')
+        # Chrome binary paths to check
+        chrome_paths = [
+            chrome_path,  # From environment variable
+            '/opt/render/project/src/.render/chrome',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/google-chrome',
+            '/opt/google/chrome/chrome'
+        ]
+        
+        chrome_found = False
+        for path in chrome_paths:
+            if path and os.path.exists(path):
+                print(f"Found Chrome at: {path}")
+                options.binary_location = path
+                chrome_found = True
+                break
+        
+        if not chrome_found:
+            print("Attempting to find Chrome using which...")
+            chrome_path = os.popen('which google-chrome-stable').read().strip()
+            if chrome_path:
+                print(f"Found Chrome using which: {chrome_path}")
+                options.binary_location = chrome_path
+                chrome_found = True
+        
+        if not chrome_found:
+            raise Exception("Chrome binary not found. Make sure Chrome is installed and PATH is configured correctly.")
+
+        # Headless mode and other Render-specific options
+        options.add_argument('--headless=new')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--single-process')
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-software-rasterizer')
+        options.add_argument('--disable-setuid-sandbox')
+        options.add_argument('--disable-blink-features=AutomationControlled')
 
         # Common options for all environments
         options.add_argument('--window-size=1920,1080')
@@ -73,14 +75,25 @@ class TwitterScraper:
         options.add_argument(f'--user-agent={user_agent}')
 
         try:
-            if 'RENDER' in os.environ:
-                print("Setting up ChromeDriver for Render...")
-                service = Service(
-                    executable_path='/opt/render/project/src/.render/chromedriver',
-                    log_path='/tmp/chromedriver.log'
-                )
+            # Use ChromeDriver path from environment or fallback
+            service_paths = [
+                chromedriver_path,
+                '/opt/render/project/src/.render/chromedriver',
+                '/usr/local/bin/chromedriver'
+            ]
+            
+            service_path = None
+            for path in service_paths:
+                if path and os.path.exists(path):
+                    service_path = path
+                    break
+            
+            if service_path:
+                print(f"Using ChromeDriver at: {service_path}")
+                service = Service(executable_path=service_path)
             else:
-                print("Setting up ChromeDriver for local environment...")
+                # Fallback to WebDriverManager
+                print("Using WebDriverManager for ChromeDriver...")
                 from webdriver_manager.chrome import ChromeDriverManager
                 service = Service(ChromeDriverManager().install())
             
