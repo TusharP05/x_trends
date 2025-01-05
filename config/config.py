@@ -4,7 +4,7 @@ import os
 load_dotenv()
 
 # MongoDB Configuration
-MONGODB_URI = 'mongodb+srv://tusharparakh05:GWSjJggabCcZj65u@cluster0.ilgnu.mongodb.net/twitter_trends?retryWrites=true&w=majority&tls=true'
+MONGODB_URI = os.getenv('MONGODB_URI')
 DB_NAME = 'twitter_trends'
 COLLECTION_NAME = 'trending_topics'
 

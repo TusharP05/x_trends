@@ -23,7 +23,7 @@ class TwitterScraper:
         options.add_argument("--start-maximized")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
 
-        # ProxyMesh configuration -
+        # ProxyMesh configuration - commented out but kept for assignment requirements
         """
         # Setting up ProxyMesh
         PROXY_USERNAME = Config.PROXY_USERNAME
