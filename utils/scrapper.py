@@ -4,10 +4,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 import json
 import time
 import random
+import os
 from config.config import TWITTER_USERNAME, TWITTER_PASSWORD, TWITTER_EMAIL, PROXY_USERNAME, PROXY_PASSWORD, PROXY_HOST, PROXY_PORT
 
 class TwitterScraper:
@@ -17,27 +19,56 @@ class TwitterScraper:
 
     def setup_driver(self):
         options = webdriver.ChromeOptions()
-        options.add_argument("--disable-gpu")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--start-maximized")
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        
+        if 'RENDER' in os.environ:
+            print("Configuring for Render environment...")
+            options.binary_location = '/usr/bin/google-chrome-stable'
+            options.add_argument('--headless')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--single-process')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--remote-debugging-pipe')
+            options.add_argument("--disable-setuid-sandbox")
+            
+        options.add_argument('--window-size=1920,1080')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--disable-notifications')
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-infobars')
+        options.add_argument('--lang=en-US')
+        
+        # Set user agent
+        user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        options.add_argument(f'--user-agent={user_agent}')
 
-        # ProxyMesh configuration - commented out but kept for assignment requirements
+        # ProxyMesh configuration - commented but kept for assignment
         """
-        # Setting up ProxyMesh
         PROXY_USERNAME = Config.PROXY_USERNAME
         PROXY_PASSWORD = Config.PROXY_PASSWORD
         PROXY_HOST = Config.PROXY_HOST
         PROXY_PORT = Config.PROXY_PORT
-    
         options.add_argument(f'--proxy-server=http://{PROXY_HOST}:{PROXY_PORT}')
         options.add_argument(f'--proxy-auth={PROXY_USERNAME}:{PROXY_PASSWORD}')
         options.add_argument(f'--proxy-bypass-list=<-loopback>')
         """
 
-        self.driver = webdriver.Chrome(options=options)
-        self.wait = WebDriverWait(self.driver, 20)
+        try:
+            if 'RENDER' in os.environ:
+                service = Service(executable_path='/usr/local/bin/chromedriver')
+                self.driver = webdriver.Chrome(service=service, options=options)
+            else:
+                from webdriver_manager.chrome import ChromeDriverManager
+                service = Service(ChromeDriverManager().install())
+                self.driver = webdriver.Chrome(service=service, options=options)
+
+            self.wait = WebDriverWait(self.driver, 20)
+            print("Chrome driver initialized successfully")
+            
+        except Exception as e:
+            print(f"Chrome driver initialization error: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            raise
 
     def human_like_typing(self, element, text):
         for char in text:
@@ -58,14 +89,12 @@ class TwitterScraper:
             current_url = self.driver.current_url
             page_source = self.driver.page_source.lower()
             
-            # If URL changed and not a verification page
             if current_url != initial_url and not any([
                 x in current_url for x in ["verify", "verification", "confirm", "challenge", "authenticate"]
             ]):
                 print("Verification completed!")
                 return True
                 
-            # Check if we're still on verification page
             verification_indicators = [
                 x in page_source for x in [
                     "verification", "verify", "confirmation",
@@ -119,6 +148,7 @@ class TwitterScraper:
 
     def login(self):
         try:
+            print("Navigating to Twitter login...")
             self.driver.get("https://x.com/i/flow/login")
             max_steps = 5
             step_count = 0
@@ -126,6 +156,7 @@ class TwitterScraper:
             while step_count < max_steps:
                 time.sleep(3)
                 if self.is_home_page():
+                    print("Successfully logged in!")
                     return True
 
                 input_type = self.check_for_input_type()
@@ -188,6 +219,7 @@ class TwitterScraper:
         }
         
         try:
+            print(f"Handling {input_type} input...")
             input_field = self.wait_for_element(By.CSS_SELECTOR, input_selectors[input_type])
             if input_field:
                 self.human_like_typing(input_field, value)
@@ -201,9 +233,11 @@ class TwitterScraper:
 
     def get_trending_topics(self):
         try:
+            print("Navigating to Twitter trends...")
             self.driver.get("https://x.com/explore/tabs/trending")
             time.sleep(random.uniform(3, 5))
             
+            print("Fetching trending topics...")
             page_html = self.driver.page_source
             soup = BeautifulSoup(page_html, "html.parser")
             trends = soup.find_all("div", {"data-testid": "trend"}, limit=5)
@@ -217,6 +251,7 @@ class TwitterScraper:
                 except Exception as e:
                     print(f"Error parsing trend: {e}")
                     
+            print(f"Found {len(trending_data)} trending topics")
             return trending_data[:5]
 
         except Exception as e:
@@ -227,5 +262,6 @@ class TwitterScraper:
         try:
             if hasattr(self, 'driver'):
                 self.driver.quit()
+                print("Browser closed successfully")
         except Exception as e:
             print(f"Cleanup error: {e}")
