@@ -1,76 +1,51 @@
 #!/bin/bash
 
-set -e
-set -x
+set -o errexit
 
-# Comprehensive logging
-exec > >(tee /tmp/chrome_install_log.txt) 2>&1
+STORAGE_DIR=/opt/render/project/.render
 
-echo "===== Chrome Installation Debug Script ====="
-
-# Create directories with full path
-mkdir -p /opt/render/project/src/.render/chrome
-mkdir -p /tmp/chrome-install
-
-# Download Chrome
-CHROME_URL="https://dl.google.com/linux/direct/google-chrome-stable_current_x64.deb"
-CHROME_DOWNLOAD_PATH="/tmp/chrome-install/chrome.deb"
-
-# Download Chrome package
-wget -O "$CHROME_DOWNLOAD_PATH" "$CHROME_URL"
-
-# Extract Chrome
-cd /tmp/chrome-install
-ar x chrome.deb
-tar -xf data.tar.xz
-
-# Find and copy Chrome binary
-CHROME_BINARY=$(find . -name "google-chrome" | head -n 1)
-if [ -z "$CHROME_BINARY" ]; then
-    echo "CRITICAL: No Chrome binary found in extracted files"
-    exit 1
+if [[ ! -d $STORAGE_DIR/chrome ]]; then
+   echo "...Downloading Chrome"
+   mkdir -p $STORAGE_DIR/chrome
+   cd $STORAGE_DIR/chrome
+   
+   # Download Chrome .deb package
+   wget -P ./ https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+   
+   # Extract Chrome package
+   dpkg -x ./google-chrome-stable_current_amd64.deb $STORAGE_DIR/chrome
+   
+   # Remove the downloaded .deb file
+   rm ./google-chrome-stable_current_amd64.deb
+   
+   # Return to original directory
+   cd $HOME/project
+else
+   echo "...Using Chrome from cache"
 fi
 
-# Copy Chrome binary with verbose output
-echo "Copying Chrome binary..."
-cp "$CHROME_BINARY" /opt/render/project/src/.render/chrome/google-chrome
-chmod +x /opt/render/project/src/.render/chrome/google-chrome
+# Download ChromeDriver
+CHROME_VERSION=$($STORAGE_DIR/chrome/opt/google/chrome/google-chrome --version | cut -d' ' -f3 | cut -d'.' -f1)
+CHROMEDRIVER_URL=$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
+CHROMEDRIVER_DOWNLOAD="https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_URL/chromedriver_linux64.zip"
 
-# Symlink to standard locations
-mkdir -p /opt/google/chrome
-ln -sf /opt/render/project/src/.render/chrome/google-chrome /opt/google/chrome/google-chrome
-ln -sf /opt/render/project/src/.render/chrome/google-chrome /usr/bin/google-chrome
-
-# Download matching ChromeDriver
-CHROME_VERSION=$(/opt/render/project/src/.render/chrome/google-chrome --version | cut -d' ' -f3 | cut -d'.' -f1)
-CHROMEDRIVER_VERSION=$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
-CHROMEDRIVER_DOWNLOAD="https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
-
-echo "Downloading ChromeDriver version: $CHROMEDRIVER_VERSION"
-wget -O "/tmp/chromedriver.zip" "$CHROMEDRIVER_DOWNLOAD"
+echo "Downloading ChromeDriver version: $CHROMEDRIVER_URL"
+mkdir -p /opt/render/project/src/.render/
+wget -O "/opt/render/project/src/.render/chromedriver.zip" "$CHROMEDRIVER_DOWNLOAD"
 
 # Extract ChromeDriver
-unzip -o "/tmp/chromedriver.zip" -d /opt/render/project/src/.render/
+unzip -o "/opt/render/project/src/.render/chromedriver.zip" -d /opt/render/project/src/.render/
 chmod +x /opt/render/project/src/.render/chromedriver
 
-# Verification steps
-echo "===== Installation Verification ====="
-echo "Chrome binary location:"
-ls -l /opt/render/project/src/.render/chrome/google-chrome
-/opt/render/project/src/.render/chrome/google-chrome --version
+# Print versions for verification
+echo "Chrome version:"
+$STORAGE_DIR/chrome/opt/google/chrome/google-chrome --version
 
-echo "ChromeDriver location:"
-ls -l /opt/render/project/src/.render/chromedriver
+echo "ChromeDriver version:"
 /opt/render/project/src/.render/chromedriver --version
 
 # Install Python dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
 
-echo "===== Build Process Completed Successfully ====="
-
-# Print out all relevant paths for debugging
-echo "===== PATH Information ====="
-echo "Current PATH: $PATH"
-echo "Which google-chrome: $(which google-chrome)"
-echo "Chrome binary full path: $(readlink -f /opt/render/project/src/.render/chrome/google-chrome)"
+echo "Build process completed successfully"

@@ -6,8 +6,8 @@ services:
     branch: main
     buildCommand: chmod +x build.sh && ./build.sh
     startCommand: |
-      export PATH="${PATH}:/opt/render/project/src/.render/chrome:/opt/render/project/src/.render/chrome/opt/google/chrome" 
-      export CHROME_PATH="/opt/render/project/src/.render/chrome/google-chrome" 
+      export PATH="${PATH}:/opt/render/project/.render/chrome/opt/google/chrome"
+      export CHROME_PATH="/opt/render/project/.render/chrome/opt/google/chrome/google-chrome"
       export CHROMEDRIVER_PATH="/opt/render/project/src/.render/chromedriver"
       uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -16,6 +16,6 @@ services:
       - key: RENDER
         value: "true"
       - key: CHROME_PATH
-        value: "/opt/render/project/src/.render/chrome/google-chrome"
+        value: "/opt/render/project/.render/chrome/opt/google/chrome/google-chrome"
       - key: CHROMEDRIVER_PATH
         value: "/opt/render/project/src/.render/chromedriver"
