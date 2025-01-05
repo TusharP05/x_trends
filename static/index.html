@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Twitter Trends Scraper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .button {
+            background-color: #1DA1F2;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #1a91da;
+        }
+        #results {
+            margin-top: 20px;
+            display: none;
+        }
+        .trends-list {
+            list-style: none;
+            padding: 0;
+            margin: 15px 0;
+        }
+        .trends-list li {
+            padding: 5px 0;
+        }
+        .trends-list li:before {
+            content: "- ";
+        }
+        .json-view {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 15px 0;
+        }
+        .timestamp {
+            font-weight: bold;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>Twitter Trends Scraper</h1>
+    
+    <button id="runScript" class="button">Click here to run the script</button>
+    
+    <div id="results">
+        <p>These are the most happening topics as on <span id="timestamp" class="timestamp"></span></p>
+        
+        <ul id="trendsList" class="trends-list"></ul>
+        
+        <p>The IP address used for this query was <span id="ipAddress"></span></p>
+        
+        <p>Here's a JSON extract of this record from the MongoDB:</p>
+        <div id="jsonData" class="json-view"></div>
+        
+        <button id="runAgain" class="button">Click here to run the query again</button>
+    </div>
+
+    <script>
+        const runScriptBtn = document.getElementById('runScript');
+        const runAgainBtn = document.getElementById('runAgain');
+        const resultsDiv = document.getElementById('results');
+
+        async function fetchTrends() {
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<p class="loading">Loading trends... Please wait.</p>';
+            runScriptBtn.style.display = 'none';
+            
+            try {
+                const response = await fetch('/scrape');
+                const data = await response.json();
+                
+                if (data.success) {
+                    let trendsHtml = '';
+                    data.trends.forEach(trend => {
+                        trendsHtml += `<li>${trend}</li>`;
+                    });
+
+                    resultsDiv.innerHTML = `
+                        <p>These are the most happening topics as on <span class="timestamp">${new Date(data.timestamp).toLocaleString()}</span></p>
+                        
+                        <ul class="trends-list">
+                            ${trendsHtml}
+                        </ul>
+                        
+                        <p>The IP address used for this query was ${data.ip_address}</p>
+                        
+                        <p>Here's a JSON extract of this record from the MongoDB:</p>
+                        <div class="json-view">${JSON.stringify(data.record, null, 2)}</div>
+                        
+                        <button id="runAgain" class="button">Click here to run the query again</button>
+                    `;
+                    
+                    // Re-add event listener to new runAgain button
+                    document.getElementById('runAgain').addEventListener('click', fetchTrends);
+                } else {
+                    resultsDiv.innerHTML = `<p class="error">Error: ${data.detail || 'Failed to fetch trends'}</p>
+                    <button id="runAgain" class="button">Try again</button>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<p class="error">Error: ${error.message}</p>
+                <button id="runAgain" class="button">Try again</button>`;
+            }
+        }
+
+        runScriptBtn.addEventListener('click', fetchTrends);
+        runAgainBtn.addEventListener('click', fetchTrends);
+    </script>
+</body>
+</html>
