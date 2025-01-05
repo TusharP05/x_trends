@@ -2,12 +2,16 @@ services:
   - type: web
     name: twitter-trends
     env: python
-    buildCommand: chmod +x build.sh && ./build.sh
+    buildCommand: |
+      chmod +x build.sh
+      ./build.sh
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
       - key: PYTHONUNBUFFERED
         value: "true"
-      - key: CHROME_BINARY_LOCATION
+      - key: CHROME_BINARY_PATH
         value: "/usr/bin/google-chrome-stable"
     buildFilter:
       paths:
