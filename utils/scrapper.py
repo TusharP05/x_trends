@@ -10,6 +10,9 @@ import json
 import time
 import random
 import os
+import shutil
+
+# Import credentials from config
 from config.config import TWITTER_USERNAME, TWITTER_PASSWORD, TWITTER_EMAIL
 
 class TwitterScraper:
@@ -20,43 +23,62 @@ class TwitterScraper:
         self.setup_driver()
 
     def setup_driver(self):
-        options = webdriver.ChromeOptions()
-        
-        # Potential paths for Chrome and ChromeDriver
+        # Comprehensive Chrome binary search paths
         chrome_paths = [
-            os.environ.get('CHROME_PATH', '/opt/render/project/src/.render/chrome'),
-            '/opt/render/project/src/.render/chrome'
-        ]
-        chromedriver_paths = [
-            os.environ.get('CHROMEDRIVER_PATH', '/opt/render/project/src/.render/chromedriver'),
-            '/opt/render/project/src/.render/chromedriver'
+            os.environ.get('CHROME_PATH', ''),
+            '/opt/render/project/src/.render/chrome/google-chrome',
+            '/opt/render/project/src/.render/chrome/chrome',
+            '/opt/google/chrome/google-chrome',
+            '/usr/bin/google-chrome',
+            shutil.which('google-chrome'),
+            '/usr/local/bin/google-chrome'
         ]
         
-        # Find existing Chrome binary
+        # Comprehensive ChromeDriver search paths
+        chromedriver_paths = [
+            os.environ.get('CHROMEDRIVER_PATH', ''),
+            '/opt/render/project/src/.render/chromedriver',
+            '/usr/local/bin/chromedriver',
+            '/usr/bin/chromedriver',
+            shutil.which('chromedriver')
+        ]
+        
+        # Find Chrome binary
         chrome_binary = None
         for path in chrome_paths:
-            if path and os.path.exists(path):
+            if path and os.path.exists(path) and os.access(path, os.X_OK):
                 chrome_binary = path
                 break
         
-        # Find existing ChromeDriver
+        # Find ChromeDriver
         chromedriver_path = None
         for path in chromedriver_paths:
-            if path and os.path.exists(path):
+            if path and os.path.exists(path) and os.access(path, os.X_OK):
                 chromedriver_path = path
                 break
         
-        # Validate paths
+        # Detailed error logging
         if not chrome_binary:
-            raise Exception("Chrome binary not found. Ensure Chrome is installed during build process.")
+            print("CRITICAL: Chrome binary not found. Searched paths:")
+            for path in chrome_paths:
+                print(f"- {path}: {'EXISTS' if path and os.path.exists(path) else 'PATH EMPTY'}")
+            raise Exception(f"Chrome binary not found. Searched paths: {chrome_paths}")
         
         if not chromedriver_path:
-            raise Exception("ChromeDriver not found. Ensure ChromeDriver is installed during build process.")
+            print("CRITICAL: ChromeDriver not found. Searched paths:")
+            for path in chromedriver_paths:
+                print(f"- {path}: {'EXISTS' if path and os.path.exists(path) else 'PATH EMPTY'}")
+            raise Exception(f"ChromeDriver not found. Searched paths: {chromedriver_paths}")
         
-        # Set Chrome binary location
+        # Selenium options setup
+        options = webdriver.ChromeOptions()
         options.binary_location = chrome_binary
         
-        # Headless mode and Render-specific options
+        # Extensive logging
+        print(f"Using Chrome binary: {chrome_binary}")
+        print(f"Using ChromeDriver: {chromedriver_path}")
+        
+        # Headless and other options
         options.add_argument('--headless=new')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
@@ -66,39 +88,29 @@ class TwitterScraper:
         options.add_argument('--disable-software-rasterizer')
         options.add_argument('--disable-setuid-sandbox')
         options.add_argument('--disable-blink-features=AutomationControlled')
-
-        # Common options for all environments
-        options.add_argument('--window-size=1920,1080')
-        options.add_argument('--disable-notifications')
-        options.add_argument('--lang=en-US')
-        options.add_experimental_option('excludeSwitches', ['enable-automation'])
-        options.add_experimental_option('useAutomationExtension', False)
         
-        # Set user agent
-        user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        options.add_argument(f'--user-agent={user_agent}')
-
+        # Configure service
+        service = Service(executable_path=chromedriver_path)
+        
         try:
-            # Configure service with ChromeDriver path
-            service = Service(executable_path=chromedriver_path)
-            
-            print("Initializing Chrome driver...")
+            # Initialize WebDriver
             self.driver = webdriver.Chrome(service=service, options=options)
             self.wait = WebDriverWait(self.driver, 20)
             print("Chrome driver initialized successfully")
-            
         except Exception as e:
-            print(f"Chrome driver initialization error: {str(e)}")
+            print(f"CRITICAL: WebDriver initialization failed: {e}")
             import traceback
             print(traceback.format_exc())
             raise
 
     def human_like_typing(self, element, text):
+        """Simulate human-like typing with random delays between keystrokes."""
         for char in text:
             element.send_keys(char)
             time.sleep(random.uniform(0.1, 0.3))
 
     def wait_for_element(self, by, value, timeout=10):
+        """Wait for an element to be present with a specified timeout."""
         try:
             return WebDriverWait(self.driver, timeout).until(
                 EC.presence_of_element_located((by, value))
@@ -108,6 +120,7 @@ class TwitterScraper:
             return None
 
     def get_current_ip(self):
+        """Fetch the current IP address."""
         try:
             print("Fetching current IP address...")
             self.driver.get("http://httpbin.org/ip")
@@ -125,6 +138,7 @@ class TwitterScraper:
             return "Unknown IP"
 
     def login(self):
+        """Attempt to log in to Twitter/X."""
         try:
             print("Navigating to Twitter login...")
             self.driver.get("https://x.com/i/flow/login")
@@ -170,6 +184,7 @@ class TwitterScraper:
             return False
 
     def is_home_page(self):
+        """Check if the current page is the home/feed page."""
         try:
             return any([
                 'home' in self.driver.current_url.lower(),
@@ -181,6 +196,7 @@ class TwitterScraper:
             return False
 
     def check_for_input_type(self):
+        """Determine the current input field type during login."""
         page_source = self.driver.page_source.lower()
         
         input_types = {
@@ -201,6 +217,7 @@ class TwitterScraper:
         return None
 
     def handle_input_step(self, input_type, value):
+        """Handle different input steps during login process."""
         input_selectors = {
             'password': 'input[name="password"]',
             'email_or_phone': 'input[data-testid="ocfEnterTextTextInput"]',
@@ -227,6 +244,7 @@ class TwitterScraper:
             return False
 
     def get_trending_topics(self):
+        """Scrape trending topics from Twitter/X."""
         try:
             print("Navigating to Twitter trends page...")
             self.driver.get("https://x.com/explore/tabs/trending")
@@ -270,9 +288,14 @@ class TwitterScraper:
             return []
 
     def cleanup(self):
+        """Close the browser and clean up resources."""
         try:
             if hasattr(self, 'driver') and self.driver:
                 self.driver.quit()
                 print("Browser closed successfully")
         except Exception as e:
             print(f"Cleanup error: {str(e)}")
+
+    def __del__(self):
+        """Destructor to ensure browser is closed when object is deleted."""
+        self.cleanup()
