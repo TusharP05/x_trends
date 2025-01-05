@@ -8,7 +8,6 @@ from bs4 import BeautifulSoup
 import json
 import time
 import random
-import os
 from config.config import TWITTER_USERNAME, TWITTER_PASSWORD, TWITTER_EMAIL, PROXY_USERNAME, PROXY_PASSWORD, PROXY_HOST, PROXY_PORT
 
 class TwitterScraper:
@@ -18,45 +17,27 @@ class TwitterScraper:
 
     def setup_driver(self):
         options = webdriver.ChromeOptions()
-        
-        # Required options for Render deployment
-        options.add_argument('--headless')
-        options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--no-sandbox')
         options.add_argument("--disable-gpu")
-        options.add_argument("--window-size=1920,1080")
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_argument('--start-maximized')
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--start-maximized")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
-
-        # For Render deployment
-        if 'RENDER' in os.environ:
-            options.binary_location = "/usr/bin/google-chrome"
 
         # ProxyMesh configuration -
         """
+        # Setting up ProxyMesh
         PROXY_USERNAME = Config.PROXY_USERNAME
         PROXY_PASSWORD = Config.PROXY_PASSWORD
         PROXY_HOST = Config.PROXY_HOST
         PROXY_PORT = Config.PROXY_PORT
+    
         options.add_argument(f'--proxy-server=http://{PROXY_HOST}:{PROXY_PORT}')
         options.add_argument(f'--proxy-auth={PROXY_USERNAME}:{PROXY_PASSWORD}')
         options.add_argument(f'--proxy-bypass-list=<-loopback>')
         """
 
-        # Set user agent
-        options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-
         self.driver = webdriver.Chrome(options=options)
         self.wait = WebDriverWait(self.driver, 20)
-        
-        self.driver.set_window_size(1920, 1080)
-        
-        # Add CDP commands
-        self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-            "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        })
 
     def human_like_typing(self, element, text):
         for char in text:
@@ -65,7 +46,10 @@ class TwitterScraper:
 
     def wait_for_manual_verification(self):
         print("\n=== VERIFICATION CODE REQUIRED ===")
-        print("Waiting for verification...")
+        print(f"Check your email/phone for verification code")
+        print(f"You have {self.manual_verify_timeout} seconds to complete verification.")
+        print("The script will continue automatically once verified.")
+        print("=====================================")
         
         initial_url = self.driver.current_url
         start_time = time.time()
@@ -74,11 +58,14 @@ class TwitterScraper:
             current_url = self.driver.current_url
             page_source = self.driver.page_source.lower()
             
+            # If URL changed and not a verification page
             if current_url != initial_url and not any([
                 x in current_url for x in ["verify", "verification", "confirm", "challenge", "authenticate"]
             ]):
+                print("Verification completed!")
                 return True
                 
+            # Check if we're still on verification page
             verification_indicators = [
                 x in page_source for x in [
                     "verification", "verify", "confirmation",
@@ -88,10 +75,12 @@ class TwitterScraper:
             ]
             
             if not any(verification_indicators):
+                print("Verification completed!")
                 return True
                 
             time.sleep(1)
             
+        print("Verification timeout - please try again")
         return False
 
     def check_for_verification(self):
@@ -130,7 +119,6 @@ class TwitterScraper:
 
     def login(self):
         try:
-            print("Navigating to Twitter login...")
             self.driver.get("https://x.com/i/flow/login")
             max_steps = 5
             step_count = 0
@@ -138,7 +126,6 @@ class TwitterScraper:
             while step_count < max_steps:
                 time.sleep(3)
                 if self.is_home_page():
-                    print("Successfully logged in!")
                     return True
 
                 input_type = self.check_for_input_type()
@@ -201,7 +188,6 @@ class TwitterScraper:
         }
         
         try:
-            print(f"Handling {input_type} input...")
             input_field = self.wait_for_element(By.CSS_SELECTOR, input_selectors[input_type])
             if input_field:
                 self.human_like_typing(input_field, value)
@@ -215,11 +201,9 @@ class TwitterScraper:
 
     def get_trending_topics(self):
         try:
-            print("Navigating to Twitter trends...")
             self.driver.get("https://x.com/explore/tabs/trending")
             time.sleep(random.uniform(3, 5))
             
-            print("Fetching trending topics...")
             page_html = self.driver.page_source
             soup = BeautifulSoup(page_html, "html.parser")
             trends = soup.find_all("div", {"data-testid": "trend"}, limit=5)
@@ -233,7 +217,6 @@ class TwitterScraper:
                 except Exception as e:
                     print(f"Error parsing trend: {e}")
                     
-            print(f"Found {len(trending_data)} trending topics")
             return trending_data[:5]
 
         except Exception as e:
@@ -244,6 +227,5 @@ class TwitterScraper:
         try:
             if hasattr(self, 'driver'):
                 self.driver.quit()
-                print("Browser closed successfully")
         except Exception as e:
             print(f"Cleanup error: {e}")
