@@ -1,51 +1,38 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 
-echo "Starting build process..."
-
-# Update package list
-apt-get update
-
-# Install dependencies
-apt-get install -y wget gnupg2 unzip
-
-# Add Google Chrome repository key
-wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
+echo "Starting Chrome installation..."
 
 # Add Google Chrome repository
-echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
+wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
+echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list
 
-# Update package list again
+# Update packages and install Chrome
 apt-get update
-
-# Install Google Chrome
 apt-get install -y google-chrome-stable
 
-# Verify Chrome installation
-echo "Checking Chrome installation..."
+# Print Chrome path and version
 which google-chrome-stable
 google-chrome-stable --version
 
-# Get Chrome version for matching ChromeDriver
-CHROME_VERSION=$(google-chrome-stable --version | cut -d ' ' -f 3 | cut -d '.' -f 1)
+# Install ChromeDriver
+CHROME_VERSION=$(google-chrome-stable --version | cut -d' ' -f3 | cut -d'.' -f1)
+CHROMEDRIVER_VERSION=$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
+echo "Installing ChromeDriver version: $CHROMEDRIVER_VERSION"
 
-# Download and install ChromeDriver
-echo "Installing ChromeDriver..."
-wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROME_VERSION.0.6261.94/linux64/chromedriver-linux64.zip"
-unzip chromedriver-linux64.zip
-mv chromedriver-linux64/chromedriver /usr/local/bin/
+wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
+unzip chromedriver_linux64.zip
+mv chromedriver /usr/local/bin/
 chmod +x /usr/local/bin/chromedriver
+rm chromedriver_linux64.zip
 
-# Verify ChromeDriver installation
-echo "Checking ChromeDriver installation..."
-which chromedriver
-chromedriver --version
+# Create directory if it doesn't exist
+mkdir -p /opt/render/project/src/.render/
 
-# Create symlink to ensure Chrome is found in the expected location
-ln -s $(which google-chrome-stable) /usr/bin/google-chrome-stable
+# Create symlinks
+ln -sf $(which google-chrome-stable) /opt/render/project/src/.render/chrome
+ln -sf /usr/local/bin/chromedriver /opt/render/project/src/.render/chromedriver
+
+echo "Chrome installation completed. Installed at: $(which google-chrome-stable)"
 
 # Install Python dependencies
-echo "Installing Python dependencies..."
 pip install -r requirements.txt
-
-echo "Build completed successfully!"
