@@ -2,10 +2,12 @@ services:
   - type: web
     name: twitter-trends
     env: python
-    buildCommand: chmod +x render-build.sh && ./render-build.sh
+    buildCommand: chmod +x build.sh && ./build.sh
     startCommand: |
       export PATH="${PATH}:/opt/render/project/.render/chrome/opt/google/chrome"
       uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHONUNBUFFERED
         value: "true"
+      - key: CHROME_PATH
+        value: "/opt/render/project/.render/chrome/opt/google/chrome/google-chrome"
