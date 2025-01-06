@@ -4,6 +4,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 import json
 import time
@@ -14,28 +15,30 @@ from config.config import TWITTER_USERNAME, TWITTER_PASSWORD, TWITTER_EMAIL
 class TwitterScraper:
     def __init__(self, manual_verify_timeout=300):
         self.manual_verify_timeout = manual_verify_timeout
+        self.driver = None
+        self.wait = None
         self.setup_driver()
 
     def setup_driver(self):
         options = webdriver.ChromeOptions()
         
-        # Basic Chrome settings
+        if 'RENDER' in os.environ:
+            chrome_path = '/opt/render/project/.render/chrome/opt/google/chrome/google-chrome'
+            chromedriver_path = '/opt/render/project/.render/chromedriver/chromedriver-linux64/chromedriver'
+            options.binary_location = chrome_path
+        
         options.add_argument('--no-sandbox')
         options.add_argument('--headless=new')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--disable-extensions')
         options.add_argument('--window-size=1920,1080')
-        options.add_argument('--ignore-certificate-errors')
-        
-        # Anti-bot detection
         options.add_experimental_option('excludeSwitches', ['enable-automation'])
         options.add_experimental_option('useAutomationExtension', False)
-        options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
         try:
-            # Let Selenium manage the driver
-            self.driver = webdriver.Chrome(options=options)
+            service = Service(executable_path=chromedriver_path if 'RENDER' in os.environ else None)
+            self.driver = webdriver.Chrome(service=service, options=options)
             self.wait = WebDriverWait(self.driver, 20)
             print("Chrome driver initialized successfully")
         except Exception as e:
@@ -220,7 +223,7 @@ class TwitterScraper:
 
     def cleanup(self):
         try:
-            if hasattr(self, 'driver') and self.driver:
+            if self.driver:
                 self.driver.quit()
                 print("Browser closed successfully")
         except Exception as e:

@@ -3,6 +3,7 @@
 set -o errexit
 
 STORAGE_DIR=/opt/render/project/.render
+CHROMEDRIVER_DIR="$STORAGE_DIR/chromedriver"
 
 if [[ ! -d $STORAGE_DIR/chrome ]]; then
    echo "...Downloading Chrome"
@@ -11,29 +12,26 @@ if [[ ! -d $STORAGE_DIR/chrome ]]; then
    wget -P ./ https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
    dpkg -x ./google-chrome-stable_current_amd64.deb $STORAGE_DIR/chrome
    rm ./google-chrome-stable_current_amd64.deb
-   cd $HOME/project
 else
    echo "...Using Chrome from cache"
 fi
 
-# Get exact Chrome version
-CHROME_VERSION=$($STORAGE_DIR/chrome/opt/google/chrome/google-chrome --version | cut -d' ' -f3)
-echo "Chrome version: $CHROME_VERSION"
+# Create ChromeDriver directory
+mkdir -p $CHROMEDRIVER_DIR
 
 # Download specific ChromeDriver version for Chrome 131
 CHROMEDRIVER_VERSION="131.0.6778.111"
 echo "Using ChromeDriver version: $CHROMEDRIVER_VERSION"
 
-wget -O "chromedriver.zip" "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip"
-unzip -o "chromedriver.zip"
+wget -O "$CHROMEDRIVER_DIR/chromedriver.zip" "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip"
+cd $CHROMEDRIVER_DIR
+unzip -o chromedriver.zip
 chmod +x chromedriver-linux64/chromedriver
-mv chromedriver-linux64/chromedriver /usr/local/bin/
 
 # Print versions for verification
 echo "Chrome version:"
 $STORAGE_DIR/chrome/opt/google/chrome/google-chrome --version
-echo "ChromeDriver version:"
-chromedriver --version
+echo "ChromeDriver path: $CHROMEDRIVER_DIR/chromedriver-linux64/chromedriver"
 
 # Install Python dependencies
 pip install -r requirements.txt
