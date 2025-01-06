@@ -10,7 +10,7 @@ import json
 import time
 import random
 import os
-from config.config import TWITTER_USERNAME, TWITTER_PASSWORD, TWITTER_EMAIL
+from config.config import TWITTER_USERNAME, TWITTER_PASSWORD, TWITTER_EMAIL, TWITTER_PHONE
 
 class TwitterScraper:
     def __init__(self, manual_verify_timeout=300):
@@ -26,15 +26,13 @@ class TwitterScraper:
             chrome_path = '/opt/render/project/.render/chrome/opt/google/chrome/google-chrome'
             chromedriver_path = '/opt/render/project/.render/chromedriver/chromedriver-linux64/chromedriver'
             options.binary_location = chrome_path
-        
-        options.add_argument('--no-sandbox')
-        options.add_argument('--headless=new')
-        options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--disable-gpu')
-        options.add_argument('--disable-extensions')
-        options.add_argument('--window-size=1920,1080')
-        options.add_experimental_option('excludeSwitches', ['enable-automation'])
-        options.add_experimental_option('useAutomationExtension', False)
+            options.add_argument('--headless=new')
+
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--start-maximized")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
 
         try:
             service = Service(executable_path=chromedriver_path if 'RENDER' in os.environ else None)
@@ -50,6 +48,56 @@ class TwitterScraper:
             element.send_keys(char)
             time.sleep(random.uniform(0.1, 0.3))
 
+    def wait_for_manual_verification(self):
+        print("\n=== VERIFICATION CODE REQUIRED ===")
+        print(f"Check your email/phone for verification code")
+        print(f"You have {self.manual_verify_timeout} seconds to complete verification.")
+        print("The script will continue automatically once verified.")
+        print("=====================================")
+        
+        initial_url = self.driver.current_url
+        start_time = time.time()
+        
+        while time.time() - start_time < self.manual_verify_timeout:
+            current_url = self.driver.current_url
+            page_source = self.driver.page_source.lower()
+            
+            if current_url != initial_url and not any([
+                x in current_url for x in ["verify", "verification", "confirm", "challenge", "authenticate"]
+            ]):
+                print("Verification completed!")
+                return True
+                
+            verification_indicators = [
+                x in page_source for x in [
+                    "verification", "verify", "confirmation",
+                    "confirm your identity", "enter the code",
+                    "verify your phone", "verify your email"
+                ]
+            ]
+            
+            if not any(verification_indicators):
+                print("Verification completed!")
+                return True
+                
+            time.sleep(1)
+            
+        print("Verification timeout - please try again")
+        return False
+
+    def check_for_verification(self):
+        try:
+            verification_elements = self.driver.find_elements(By.XPATH, 
+                "//*[contains(text(), 'verification') or contains(text(), 'Verify') or \
+                contains(text(), 'confirm') or contains(text(), 'Confirm') or \
+                contains(text(), 'Enter the code')]"
+            )
+            if verification_elements and not self.wait_for_manual_verification():
+                raise Exception("Verification timeout")
+        except NoSuchElementException:
+            pass
+        return True
+
     def wait_for_element(self, by, value, timeout=10):
         try:
             return WebDriverWait(self.driver, timeout).until(
@@ -61,17 +109,13 @@ class TwitterScraper:
 
     def get_current_ip(self):
         try:
-            print("Fetching current IP address...")
             self.driver.get("http://httpbin.org/ip")
             time.sleep(2)
-            
-            pre_element = self.wait_for_element(By.TAG_NAME, "pre")
-            if pre_element:
-                data = json.loads(pre_element.text)
-                ip = data.get('origin', 'Unknown IP')
-                print(f"Current IP: {ip}")
-                return ip
-            return "Unknown IP"
+            pre_element = self.wait.until(
+                EC.presence_of_element_located((By.TAG_NAME, "pre"))
+            )
+            data = json.loads(pre_element.text)
+            return data.get('origin', 'Unknown IP')
         except Exception as e:
             print(f"Error fetching IP: {e}")
             return "Unknown IP"
@@ -92,24 +136,21 @@ class TwitterScraper:
                 input_type = self.check_for_input_type()
                 print(f'Current input field: {input_type}')
 
-                success = False
                 if input_type == 'username':
-                    success = self.handle_input_step('username', TWITTER_USERNAME)
+                    self.handle_input_step('username', TWITTER_USERNAME)
                 elif input_type == 'password':
-                    success = self.handle_input_step('password', TWITTER_PASSWORD)
+                    self.handle_input_step('password', TWITTER_PASSWORD)
                 elif input_type == 'email_or_phone':
-                    success = self.handle_input_step('email_or_phone', TWITTER_EMAIL)
+                    self.handle_input_step('email_or_phone', TWITTER_EMAIL)
                 elif input_type == 'phone_or_username':
-                    success = self.handle_input_step('phone_or_username', TWITTER_USERNAME)
+                    self.handle_input_step('phone_or_username', TWITTER_USERNAME)
+                elif input_type=='Phone_number':
+                    self.handle_input_step('Phone_number', TWITTER_PHONE)
                 elif input_type == 'verification':
-                    print("Verification required - not supported in headless mode")
-                    return False
+                    if not self.wait_for_manual_verification():
+                        return False
                 else:
-                    print("Unknown input type encountered")
-                    return False
-
-                if not success:
-                    print(f"Failed to handle {input_type} input")
+                    print("Unknown input type")
                     return False
 
                 step_count += 1
@@ -118,7 +159,7 @@ class TwitterScraper:
             return self.is_home_page()
 
         except Exception as e:
-            print(f"Login failed: {str(e)}")
+            print(f"Login failed: {e}")
             return False
 
     def is_home_page(self):
@@ -133,23 +174,18 @@ class TwitterScraper:
             return False
 
     def check_for_input_type(self):
-        page_source = self.driver.page_source.lower()
-        
-        input_types = {
-            'enter your password': 'password',
-            'enter your phone number or email address': 'email_or_phone',
-            'enter your phone number or username': 'phone_or_username',
-            'sign in to x': 'username'
-        }
-
-        for text, input_type in input_types.items():
+        page_source = self.driver.page_source
+        for text, input_type in [
+            ('Enter your password', 'password'),
+            ('Enter your phone number or email address', 'email_or_phone'),
+            ('Enter your phone number or username', 'phone_or_username'),
+            ('Sign in to X', 'username'),
+            ('Help us keep your account safe', 'Phone_number')
+        ]:
             if text in page_source:
                 return input_type
-
-        verification_phrases = ['verification code', 'confirm your identity']
-        if any(phrase in page_source for phrase in verification_phrases):
+        if any(x in page_source.lower() for x in ['verification code', 'confirm your identity']):
             return 'verification'
-
         return None
 
     def handle_input_step(self, input_type, value):
@@ -157,26 +193,24 @@ class TwitterScraper:
             'password': 'input[name="password"]',
             'email_or_phone': 'input[data-testid="ocfEnterTextTextInput"]',
             'phone_or_username': 'input[data-testid="ocfEnterTextTextInput"]',
-            'username': 'input[autocomplete="username"]'
+            'username': 'input[autocomplete="username"]',
+            'Phone_number': 'input[data-testid="ocfEnterTextTextInput"]'
         }
         
         try:
             print(f"Handling {input_type} input...")
             input_field = self.wait_for_element(By.CSS_SELECTOR, input_selectors[input_type])
-            
             if input_field:
+                if input_type == 'email_or_phone':
+                    value = TWITTER_EMAIL  # Use email for email/phone choice
                 self.human_like_typing(input_field, value)
                 time.sleep(random.uniform(0.5, 1.5))
                 input_field.send_keys(Keys.ENTER)
                 time.sleep(3)
                 return True
-                
-            print(f"Input field for {input_type} not found")
-            return False
-            
         except Exception as e:
-            print(f"Error handling {input_type} input: {str(e)}")
-            return False
+            print(f"Error handling {input_type}: {e}")
+        return False
 
     def get_trending_topics(self):
         try:
@@ -184,7 +218,6 @@ class TwitterScraper:
             self.driver.get("https://x.com/explore/tabs/trending")
             time.sleep(random.uniform(3, 5))
             
-            print("Processing page content...")
             page_html = self.driver.page_source
             soup = BeautifulSoup(page_html, "html.parser")
             trends = soup.find_all("div", {"data-testid": "trend"}, limit=5)
@@ -192,33 +225,16 @@ class TwitterScraper:
             trending_data = []
             for trend in trends:
                 try:
-                    # Try multiple possible class names for trend topics
-                    selectors = [
-                        'css-901oao r-1nao33i r-37j5jr r-n6v787',
-                        'css-1dbjc4n r-1nao33i r-37j5jr r-n6v787',
-                        'css-146c3p1 r-bcqeeo r-qvutc0 r-37j5jr'
-                    ]
-                    
-                    topic_name = None
-                    for selector in selectors:
-                        topic_name = trend.find('div', class_=selector)
-                        if topic_name:
-                            break
-                    
+                    topic_name = trend.find('div', class_='css-146c3p1 r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-a023e6 r-rjixqe r-b88u0q r-1bymd8e')
                     if topic_name:
-                        trend_text = topic_name.get_text(strip=True)
-                        trending_data.append(trend_text)
-                        print(f"Found trend: {trend_text}")
-                        
+                        trending_data.append(topic_name.get_text(strip=True))
                 except Exception as e:
-                    print(f"Error parsing individual trend: {str(e)}")
-                    continue
-            
-            print(f"Successfully found {len(trending_data)} trending topics")
+                    print(f"Error parsing trend: {e}")
+                    
             return trending_data[:5]
 
         except Exception as e:
-            print(f"Error fetching trends: {str(e)}")
+            print(f"Error fetching trends: {e}")
             return []
 
     def cleanup(self):
@@ -227,7 +243,7 @@ class TwitterScraper:
                 self.driver.quit()
                 print("Browser closed successfully")
         except Exception as e:
-            print(f"Cleanup error: {str(e)}")
+            print(f"Cleanup error: {e}")
 
     def __del__(self):
         self.cleanup()
