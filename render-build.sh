@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# exit on error
 set -o errexit
 
 STORAGE_DIR=/opt/render/project/.render
@@ -17,18 +16,20 @@ else
    echo "...Using Chrome from cache"
 fi
 
-# Download ChromeDriver
-CHROME_VERSION=$($STORAGE_DIR/chrome/opt/google/chrome/google-chrome --version | cut -d' ' -f3 | cut -d'.' -f1)
-CHROMEDRIVER_URL=$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
-CHROMEDRIVER_DOWNLOAD="https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_URL/chromedriver_linux64.zip"
+# Get exact Chrome version
+CHROME_VERSION=$($STORAGE_DIR/chrome/opt/google/chrome/google-chrome --version | cut -d' ' -f3)
+echo "Chrome version: $CHROME_VERSION"
 
-echo "Downloading ChromeDriver version: $CHROMEDRIVER_URL"
-wget -O "chromedriver.zip" "$CHROMEDRIVER_DOWNLOAD"
+# Download specific ChromeDriver version for Chrome 131
+CHROMEDRIVER_VERSION="131.0.6778.111"
+echo "Using ChromeDriver version: $CHROMEDRIVER_VERSION"
+
+wget -O "chromedriver.zip" "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip"
 unzip -o "chromedriver.zip"
-chmod +x chromedriver
-mv chromedriver /usr/local/bin/
+chmod +x chromedriver-linux64/chromedriver
+mv chromedriver-linux64/chromedriver /usr/local/bin/
 
-# Print versions
+# Print versions for verification
 echo "Chrome version:"
 $STORAGE_DIR/chrome/opt/google/chrome/google-chrome --version
 echo "ChromeDriver version:"
