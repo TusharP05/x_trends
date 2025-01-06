@@ -34,6 +34,5 @@ $STORAGE_DIR/chrome/opt/google/chrome/google-chrome --version
 echo "ChromeDriver path: $CHROMEDRIVER_DIR/chromedriver-linux64/chromedriver"
 
 # Install Python dependencies
-pip install -r requirements.txt
 
 echo "Build completed successfully"
