@@ -216,8 +216,8 @@ class TwitterScraper:
         try:
             print("Navigating to Twitter trends page...")
             self.driver.get("https://x.com/explore/tabs/trending")
+            time.sleep(30)
             print(self.driver.page_source)
-            time.sleep(5)
             
             page_html = self.driver.page_source
             soup = BeautifulSoup(page_html, "html.parser")
