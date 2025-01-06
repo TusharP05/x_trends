@@ -216,6 +216,7 @@ class TwitterScraper:
         try:
             print("Navigating to Twitter trends page...")
             self.driver.get("https://x.com/explore/tabs/trending")
+            print(self.driver.page_source)
             time.sleep(5)
             
             page_html = self.driver.page_source

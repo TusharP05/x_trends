@@ -8,6 +8,11 @@ from datetime import datetime
 import uvicorn
 
 app = FastAPI()
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 
 # Enable CORS
 app.add_middleware(
@@ -42,8 +47,14 @@ async def scrape_trends():
             raise HTTPException(status_code=500, detail="Failed to login to Twitter")
             
         trends = scraper.get_trending_topics()
-        if not trends:
-            raise HTTPException(status_code=500, detail="Failed to fetch trends")
+        try:
+            print("Attempting to locate trends...")
+            if not trends:
+             raise HTTPException(status_code=500, detail="Failed to fetch trends")
+    # Your scraping logic here
+        except Exception as e:
+            print(f"Error occurred while fetching trends: {e}")
+
             
         record = db.save_trends(trends, ip_address)
         if not record:
